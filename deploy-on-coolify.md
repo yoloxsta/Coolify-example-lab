@@ -134,6 +134,52 @@ git push
 
 ---
 
+## How Networking Works (ports vs expose)
+
+You might see port `8080` in multiple places when running `docker ps`. Here's what each one is:
+
+```
+backend container       → 8080/tcp                  (internal only, not on host)
+traefik (coolify-proxy) → 0.0.0.0:8080->8080/tcp    (Traefik dashboard)
+coolify                 → 0.0.0.0:8000->8080/tcp    (Coolify UI mapped to host port 8000)
+```
+
+They don't conflict because:
+
+- Your backend uses `expose: 8080` — this only makes the port visible inside Docker's internal network. It does NOT bind to the host. No one outside can reach it directly.
+- Traefik's `0.0.0.0:8080` is Traefik's own dashboard, not your app.
+- Coolify's `0.0.0.0:8000->8080` is the Coolify web UI.
+
+### Traffic Flow
+
+```
+Browser → port 80/443 → Traefik → checks domain name → routes to correct container
+
+myapp.example.com   → Traefik → frontend container:80
+api.example.com     → Traefik → backend container:8080
+```
+
+Traefik is a reverse proxy. It receives all HTTP/HTTPS traffic on port 80/443, reads the domain from the request, and forwards it to the right container internally.
+
+### Why `expose` instead of `ports`
+
+- `ports: "8080:8080"` → binds to the host machine directly. This causes conflicts (e.g. Traefik already uses 8080).
+- `expose: "8080"` → only visible inside Docker's network. Traefik routes traffic by domain, no port conflicts.
+
+In `docker-compose.yml`, always use `expose` when deploying on Coolify:
+
+```yaml
+backend:
+  expose:
+    - "8080"    # internal only, Traefik handles external routing
+
+frontend:
+  expose:
+    - "80"      # internal only, Traefik handles external routing
+```
+
+---
+
 ## Tips
 
 - **Auto Deploy**: Enable **Webhooks** in Coolify so it auto-deploys on every `git push`
