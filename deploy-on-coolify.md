@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Coolify is installed and running at `http://sta-coolify.maharstg.com` (or `http://YourIP:8000`)
+- Coolify is installed and running at `http://sta-coolify.example.com` (or `http://YourIP:8000`)
 - Your repo is pushed to GitHub (public or private)
 - If private repo, connect GitHub to Coolify first
 
