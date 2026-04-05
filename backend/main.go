@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -35,7 +37,6 @@ func main() {
 	}
 	defer db.Close()
 
-	// create table if not exists
 	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS items (
 		id SERIAL PRIMARY KEY,
 		name TEXT NOT NULL
@@ -46,10 +47,34 @@ func main() {
 
 	http.HandleFunc("/api/items", corsMiddleware(itemsHandler))
 	http.HandleFunc("/api/items/", corsMiddleware(itemDeleteHandler))
+	http.HandleFunc("/api/notifications", corsMiddleware(proxyNotifications))
 	http.HandleFunc("/api/health", corsMiddleware(healthHandler))
 
 	log.Println("Backend listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+var notiURL = getEnv("NOTI_URL", "http://notification:8081")
+
+func sendNotification(message string) {
+	body, _ := json.Marshal(map[string]string{"message": message})
+	resp, err := http.Post(notiURL+"/api/notifications", "application/json", bytes.NewReader(body))
+	if err != nil {
+		log.Printf("Failed to send notification: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+}
+
+func proxyNotifications(w http.ResponseWriter, r *http.Request) {
+	resp, err := http.Get(notiURL + "/api/notifications")
+	if err != nil {
+		http.Error(w, "notification service unavailable", 502)
+		return
+	}
+	defer resp.Body.Close()
+	w.Header().Set("Content-Type", "application/json")
+	io.Copy(w, resp.Body)
 }
 
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -101,6 +126,7 @@ func itemsHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 500)
 			return
 		}
+		go sendNotification(fmt.Sprintf("Created item: %s", item.Name))
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(item)
 
@@ -115,9 +141,12 @@ func itemDeleteHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", 405)
 		return
 	}
-	// extract id from /api/items/{id}
 	parts := strings.Split(strings.TrimSuffix(r.URL.Path, "/"), "/")
 	id := parts[len(parts)-1]
+
+	var name string
+	db.QueryRow("SELECT name FROM items WHERE id = $1", id).Scan(&name)
+
 	result, err := db.Exec("DELETE FROM items WHERE id = $1", id)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -128,6 +157,7 @@ func itemDeleteHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", 404)
 		return
 	}
+	go sendNotification(fmt.Sprintf("Deleted item: %s", name))
 	json.NewEncoder(w).Encode(map[string]string{"deleted": id})
 }
 

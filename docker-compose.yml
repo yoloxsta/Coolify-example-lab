@@ -33,7 +33,6 @@ services:
       - "80"
     depends_on:
       - backend
-      - notification
 
   notification:
     build: ./notification

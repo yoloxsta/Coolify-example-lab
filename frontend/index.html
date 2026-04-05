@@ -9,6 +9,7 @@
     body { font-family: system-ui, sans-serif; background: #f0f2f5; color: #333; display: flex; justify-content: center; padding: 40px 16px; }
     .container { max-width: 500px; width: 100%; }
     h1 { margin-bottom: 20px; font-size: 1.6rem; }
+    h2 { margin-top: 32px; margin-bottom: 12px; font-size: 1.2rem; color: #555; }
     form { display: flex; gap: 8px; margin-bottom: 24px; }
     input { flex: 1; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; }
     button { padding: 10px 20px; background: #4f46e5; color: #fff; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
@@ -18,6 +19,8 @@
     .del-btn { background: #ef4444; color: #fff; border: none; border-radius: 4px; padding: 4px 10px; cursor: pointer; font-size: 0.85rem; }
     .del-btn:hover { background: #dc2626; }
     .status { font-size: 0.85rem; color: #888; margin-bottom: 16px; }
+    .noti-item { background: #f0fdf4; font-size: 0.9rem; color: #166534; }
+    .badge { background: #ef4444; color: #fff; border-radius: 50%; padding: 2px 7px; font-size: 0.75rem; margin-left: 8px; }
   </style>
 </head>
 <body>
@@ -30,11 +33,16 @@
       <button type="submit">Add</button>
     </form>
     <ul id="list"></ul>
+
+    <h2>Notifications <span id="noti-badge"></span></h2>
+    <ul id="noti-list"></ul>
   </div>
   <script>
     const API = 'http://api-myapp.3.16.76.102.sslip.io';
     const list = document.getElementById('list');
+    const notiList = document.getElementById('noti-list');
     const status = document.getElementById('status');
+    const notiBadge = document.getElementById('noti-badge');
 
     async function loadItems() {
       try {
@@ -47,9 +55,21 @@
       }
     }
 
+    async function loadNotifications() {
+      try {
+        const res = await fetch(API + '/api/notifications');
+        const notifs = await res.json();
+        notiBadge.innerHTML = notifs.length > 0 ? `<span class="badge">${notifs.length}</span>` : '';
+        notiList.innerHTML = notifs.map((n, idx) => `<li class="noti-item">${idx + 1}. ${n.message}</li>`).join('');
+      } catch (e) {
+        notiList.innerHTML = '';
+      }
+    }
+
     async function deleteItem(id) {
       await fetch(API + '/api/items/' + id, { method: 'DELETE' });
       loadItems();
+      setTimeout(loadNotifications, 300);
     }
 
     document.getElementById('form').addEventListener('submit', async (e) => {
@@ -64,9 +84,11 @@
       });
       input.value = '';
       loadItems();
+      setTimeout(loadNotifications, 300);
     });
 
     loadItems();
+    loadNotifications();
   </script>
 </body>
 </html>
