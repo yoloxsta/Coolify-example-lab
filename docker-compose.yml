@@ -8,17 +8,32 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      test: ["CMD-SHELL", "pg_isready -U $${DB_USER} -d $${DB_NAME}"]
       interval: 5s
       timeout: 3s
-      retries: 5
+      retries: 10
 
   backend:
     build: ./backend
     expose:
       - "8080"
     environment:
-      DB_HOST: ${DB_HOST}
+      DB_HOST: db
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      NOTI_URL: http://notification:8081
+    depends_on:
+      db:
+        condition: service_healthy
+
+  notification:
+    build: ./notification
+    expose:
+      - "8081"
+    environment:
+      DB_HOST: db
       DB_PORT: ${DB_PORT}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
@@ -33,20 +48,6 @@ services:
       - "80"
     depends_on:
       - backend
-
-  notification:
-    build: ./notification
-    expose:
-      - "8081"
-    environment:
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_NAME: ${DB_NAME}
-    depends_on:
-      db:
-        condition: service_healthy
 
 volumes:
   pgdata:
